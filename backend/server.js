@@ -1,18 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const Database = require('better-sqlite3');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // Create SQLite database
-const db = new sqlite3.Database('./school.db');
+const db = new Database('./school.db');
 
-// Create tables
-db.run(`CREATE TABLE IF NOT EXISTS users (
+// Create tables if they don't exist
+db.exec(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
     password_hash TEXT,
@@ -20,208 +19,115 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
     role TEXT
 )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS subjects (
+db.exec(`CREATE TABLE IF NOT EXISTS subjects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT
 )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS students (
+db.exec(`CREATE TABLE IF NOT EXISTS students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
     admission_no TEXT,
     class_id INTEGER
 )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS classes (
+db.exec(`CREATE TABLE IF NOT EXISTS classes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT
 )`);
 
-// Insert default admin
-db.run(`INSERT OR IGNORE INTO users (email, password_hash, full_name, role) 
-        VALUES ('admin@school.com', 'admin123', 'System Admin', 'admin')`);
+db.exec(`CREATE TABLE IF NOT EXISTS schools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    password_hash TEXT,
+    subdomain TEXT UNIQUE,
+    logo TEXT,
+    plan TEXT DEFAULT 'basic',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`);
 
-// Insert default subjects
-db.run(`INSERT OR IGNORE INTO subjects (name) VALUES 
-        ('Mathematics'), ('English'), ('Science'), ('Social Studies')`);
+// Insert default admin if not exists
+const adminCheck = db.prepare('SELECT * FROM users WHERE email = ?').get('admin@school.com');
+if (!adminCheck) {
+    db.exec(`INSERT INTO users (email, password_hash, full_name, role) 
+             VALUES ('admin@school.com', 'admin123', 'System Admin', 'admin')`);
+}
 
-app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
-    
-    db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
-        if (err) return res.status(500).json({ error: 'Database error' });
-        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-        if (password !== user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
-        
-        const token = jwt.sign({ id: user.id, role: user.role }, 'secret', { expiresIn: '24h' });
-        res.json({ 
-            token, 
-            user: { 
-                id: user.id, 
-                name: user.full_name, 
-                email: user.email, 
-                role: user.role 
-            } 
-        });
-    });
-});
-// ============ REGISTER SCHOOL ============
+// Insert default subjects if not exists
+const subjectCheck = db.prepare('SELECT * FROM subjects WHERE name = ?').get('Mathematics');
+if (!subjectCheck) {
+    db.exec(`INSERT INTO subjects (name) VALUES 
+             ('Mathematics'), ('English'), ('Science'), ('Social Studies')`);
+}
+
+// Register School
 app.post('/api/register-school', (req, res) => {
     const { schoolName, subdomain, adminEmail, adminPassword } = req.body;
     
-    db.get('SELECT * FROM schools WHERE subdomain = ?', [subdomain], (err, school) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (school) {
-            return res.status(400).json({ error: 'Subdomain already taken. Please choose another.' });
+    try {
+        // Check if subdomain is available
+        const existingSchool = db.prepare('SELECT * FROM schools WHERE subdomain = ?').get(subdomain);
+        if (existingSchool) {
+            return res.status(400).json({ error: 'Subdomain already taken' });
         }
         
-        db.run('INSERT INTO schools (name, email, password_hash, subdomain, plan) VALUES (?, ?, ?, ?, ?)',
-            [schoolName, adminEmail, adminPassword, subdomain, 'basic'],
-            function(err) {
-                if (err) {
-                    return res.status(500).json({ error: 'Failed to create school' });
-                }
-                const schoolId = this.lastID;
-                
-                db.run('INSERT INTO users (email, password_hash, full_name, role, school_id) VALUES (?, ?, ?, ?, ?)',
-                    [adminEmail, adminPassword, 'School Admin', 'admin', schoolId],
-                    function(err) {
-                        if (err) {
-                            return res.status(500).json({ error: 'Failed to create admin user' });
-                        }
-                        res.json({ 
-                            message: 'School registered successfully!', 
-                            schoolId: schoolId 
-                        });
-                    });
-            });
-    });
+        // Create school
+        const schoolResult = db.prepare(`INSERT INTO schools (name, email, password_hash, subdomain, plan) 
+                                        VALUES (?, ?, ?, ?, ?)`).run(schoolName, adminEmail, adminPassword, subdomain, 'basic');
+        const schoolId = schoolResult.lastInsertRowid;
+        
+        // Create admin user for this school
+        db.prepare(`INSERT INTO users (email, password_hash, full_name, role, school_id) 
+                    VALUES (?, ?, ?, ?, ?)`).run(adminEmail, adminPassword, 'School Admin', 'admin', schoolId);
+        
+        res.json({ message: 'School registered successfully!', schoolId });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create school' });
+    }
 });
 
-// ============ UPDATED LOGIN WITH SCHOOL ============
+// Login
 app.post('/api/login', (req, res) => {
     const { email, password, subdomain } = req.body;
     
-    db.get('SELECT id FROM schools WHERE subdomain = ?', [subdomain], (err, school) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
+    try {
+        // Get school ID from subdomain
+        const school = db.prepare('SELECT id FROM schools WHERE subdomain = ?').get(subdomain);
         if (!school) {
             return res.status(401).json({ error: 'School not found' });
         }
         
-        db.get('SELECT * FROM users WHERE email = ? AND school_id = ?', [email, school.id], (err, user) => {
-            if (err) {
-                return res.status(500).json({ error: 'Database error' });
-            }
-            if (!user) {
-                return res.status(401).json({ error: 'Invalid credentials' });
-            }
-            if (password !== user.password_hash) {
-                return res.status(401).json({ error: 'Invalid credentials' });
-            }
-            
-            const token = jwt.sign({ 
-                id: user.id, 
-                role: user.role, 
-                school_id: school.id 
-            }, 'secret', { expiresIn: '24h' });
-            
-            res.json({ 
-                token, 
-                user: { 
-                    id: user.id, 
-                    name: user.full_name, 
-                    email: user.email, 
-                    role: user.role 
-                } 
-            });
-        });
-    });
-});
-// ============ REGISTER SCHOOL ============
-app.post('/api/register-school', (req, res) => {
-    const { schoolName, subdomain, adminEmail, adminPassword } = req.body;
-    
-    db.get('SELECT * FROM schools WHERE subdomain = ?', [subdomain], (err, school) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
+        // Check user belongs to this school
+        const user = db.prepare('SELECT * FROM users WHERE email = ? AND school_id = ?').get(email, school.id);
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
-        if (school) {
-            return res.status(400).json({ error: 'Subdomain already taken. Please choose another.' });
+        if (password !== user.password_hash) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
         
-        db.run('INSERT INTO schools (name, email, password_hash, subdomain, plan) VALUES (?, ?, ?, ?, ?)',
-            [schoolName, adminEmail, adminPassword, subdomain, 'basic'],
-            function(err) {
-                if (err) {
-                    return res.status(500).json({ error: 'Failed to create school' });
-                }
-                const schoolId = this.lastID;
-                
-                db.run('INSERT INTO users (email, password_hash, full_name, role, school_id) VALUES (?, ?, ?, ?, ?)',
-                    [adminEmail, adminPassword, 'School Admin', 'admin', schoolId],
-                    function(err) {
-                        if (err) {
-                            return res.status(500).json({ error: 'Failed to create admin user' });
-                        }
-                        res.json({ 
-                            message: 'School registered successfully!', 
-                            schoolId: schoolId 
-                        });
-                    });
-            });
-    });
+        const token = jwt.sign({ id: user.id, role: user.role, school_id: school.id }, 'secret', { expiresIn: '24h' });
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                name: user.full_name,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Database error' });
+    }
 });
 
-// ============ UPDATED LOGIN WITH SCHOOL ============
-app.post('/api/login', (req, res) => {
-    const { email, password, subdomain } = req.body;
-    
-    db.get('SELECT id FROM schools WHERE subdomain = ?', [subdomain], (err, school) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!school) {
-            return res.status(401).json({ error: 'School not found' });
-        }
-        
-        db.get('SELECT * FROM users WHERE email = ? AND school_id = ?', [email, school.id], (err, user) => {
-            if (err) {
-                return res.status(500).json({ error: 'Database error' });
-            }
-            if (!user) {
-                return res.status(401).json({ error: 'Invalid credentials' });
-            }
-            if (password !== user.password_hash) {
-                return res.status(401).json({ error: 'Invalid credentials' });
-            }
-            
-            const token = jwt.sign({ 
-                id: user.id, 
-                role: user.role, 
-                school_id: school.id 
-            }, 'secret', { expiresIn: '24h' });
-            
-            res.json({ 
-                token, 
-                user: { 
-                    id: user.id, 
-                    name: user.full_name, 
-                    email: user.email, 
-                    role: user.role 
-                } 
-            });
-        });
-    });
-});
+// Health check
 app.get('/api/health', (req, res) => {
     res.json({ message: 'Server is running!' });
 });
 
-app.listen(5000, () => {
-    console.log('Server running on http://localhost:5000');
-    console.log('Database: school.db created');
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
