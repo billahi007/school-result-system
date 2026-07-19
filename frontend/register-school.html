@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register Your School</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            width: 450px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h2 { text-align: center; color: #333; margin-bottom: 10px; }
+        p.subtitle { text-align: center; color: #7f8c8d; font-size: 14px; margin-bottom: 20px; }
+        input { 
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        button:hover { background: #27ae60; }
+        .error { color: red; margin-top: 10px; font-size: 14px; text-align: center; }
+        .success { color: green; margin-top: 10px; font-size: 14px; text-align: center; }
+        .login-link { text-align: center; margin-top: 15px; display: block; color: #667eea; text-decoration: none; }
+        .login-link:hover { text-decoration: underline; }
+        .info-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #7f8c8d;
+            border-left: 4px solid #2ecc71;
+        }
+        .info-box strong { color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🏫 Register Your School</h2>
+        <p class="subtitle">Create your school account to start using the system</p>
+        
+        <form id="registerForm">
+            <input type="text" id="schoolName" placeholder="School Name (e.g., Green Springs School)" required>
+            <input type="text" id="subdomain" placeholder="Subdomain (e.g., greensprings)" required>
+            <input type="email" id="adminEmail" placeholder="Admin Email" required>
+            <input type="password" id="adminPassword" placeholder="Admin Password" required>
+            <button type="submit">🚀 Register School</button>
+            <div id="message" class="error"></div>
+        </form>
+        
+        <a href="login.html" class="login-link">← Back to Login</a>
+        
+        <div class="info-box">
+            <strong>💡 Subdomain Tips:</strong><br>
+            • Use only letters and numbers (no spaces)<br>
+            • Must be unique (e.g., greensprings, crowncollege)<br>
+            • After registration, use this subdomain to login
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const schoolName = document.getElementById('schoolName').value;
+            const subdomain = document.getElementById('subdomain').value.toLowerCase().trim();
+            const adminEmail = document.getElementById('adminEmail').value;
+            const adminPassword = document.getElementById('adminPassword').value;
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'error';
+
+            // Validate subdomain
+            if (!/^[a-z0-9]+$/.test(subdomain)) {
+                messageDiv.textContent = 'Subdomain must contain only letters and numbers (no spaces)';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5000/api/register-school', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ schoolName, subdomain, adminEmail, adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    messageDiv.className = 'success';
+                    messageDiv.textContent = '✅ School registered successfully! You can now login.';
+                    document.getElementById('registerForm').reset();
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                } else {
+                    messageDiv.textContent = data.error || 'Registration failed';
+                }
+            } catch (err) {
+                messageDiv.textContent = '❌ Cannot connect to server. Make sure backend is running.';
+                console.error('Registration error:', err);
+            }
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Class Teacher Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #f4f6f9; }
+        .header { background: #2c3e50; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; }
+        .logout-btn { background: #e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .logout-btn:hover { background: #c0392b; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card h2 { color: #2c3e50; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #34495e; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .score-input { width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; text-align: center; background: #f0f0f0; }
+        .save-btn { background: #2ecc71; color: white; padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 15px; }
+        .save-btn:hover { background: #27ae60; }
+        .back-btn { background: #95a5a6; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 15px; }
+        .back-btn:hover { background: #7f8c8d; }
+        .welcome { font-size: 18px; color: #2c3e50; }
+        .welcome span { font-weight: bold; }
+        .hidden { display: none; }
+        .success-msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-top: 10px; display: none; }
+        .success-msg.show { display: block; }
+        .student-select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Class Teacher Dashboard</h1>
+        <div>
+            <span class="welcome">Welcome, <span id="teacherName">Class Teacher</span> 👋</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="studentView" class="card">
+            <h2>👨‍🎓 My Students</h2>
+            <p style="color: #7f8c8d; margin-bottom: 15px;">Select a student to view their results and add remarks</p>
+            
+            <select id="studentSelect" class="student-select" onchange="selectStudent()">
+                <option value="">-- Select a student --</option>
+                <option value="adeola">Adeola Kunle</option>
+                <option value="bola">Bola Tunde</option>
+                <option value="chioma">Chioma Okafor</option>
+            </select>
+        </div>
+
+        <div id="resultsView" class="card hidden">
+            <button class="back-btn" onclick="backToStudents()">← Back to Students</button>
+            <h2 id="studentNameDisplay">📊 Student Results</h2>
+            <p id="classInfo" style="color: #7f8c8d; margin-bottom: 15px;">Class: JSS 3A</p>
+            
+            <table>
+                <thead>
+                    <tr><th>Subject</th><th>CA1</th><th>CA2</th><th>Exam</th><th>Total</th><th>Grade</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Mathematics</td><td><span class="score-input">45</span></td><td><span class="score-input">32</span></td><td><span class="score-input">70</span></td><td>147</td><td><span style="background:#f39c12;color:white;padding:3px 10px;border-radius:12px;font-size:12px;">B</span></td></tr>
+                    <tr><td>English</td><td><span class="score-input">50</span></td><td><span class="score-input">40</span></td><td><span class="score-input">65</span></td><td>155</td><td><span style="background:#f39c12;color:white;padding:3px 10px;border-radius:12px;font-size:12px;">B</span></td></tr>
+                    <tr><td>Science</td><td><span class="score-input">60</span></td><td><span class="score-input">45</span></td><td><span class="score-input">75</span></td><td>180</td><td><span style="background:#2ecc71;color:white;padding:3px 10px;border-radius:12px;font-size:12px;">A</span></td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="margin-top: 20px;">📝 Class Teacher's Remark</h3>
+            <textarea id="remarkText" rows="3" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-top:10px;" placeholder="Type your remark...">Good performance, needs improvement in Mathematics.</textarea>
+            
+            <button class="save-btn" onclick="saveRemark()">💾 Save Remark</button>
+            <div id="successMsg" class="success-msg">✅ Remark saved successfully!</div>
+        </div>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('user') || '{"name":"Class Teacher", "role":"class_teacher"}');
+        if (!localStorage.getItem('token') || user.role !== 'class_teacher') {
+            window.location.href = 'login.html';
+        }
+        document.getElementById('teacherName').textContent = user.name || 'Class Teacher';
+
+        function selectStudent() {
+            const select = document.getElementById('studentSelect');
+            const studentName = select.value;
+            if (studentName === '') {
+                document.getElementById('resultsView').classList.add('hidden');
+                return;
+            }
+            const names = { 'adeola': 'Adeola Kunle', 'bola': 'Bola Tunde', 'chioma': 'Chioma Okafor' };
+            document.getElementById('studentNameDisplay').textContent = '📊 Student Results - ' + (names[studentName] || studentName);
+            document.getElementById('studentView').classList.add('hidden');
+            document.getElementById('resultsView').classList.remove('hidden');
+        }
+
+        function backToStudents() {
+            document.getElementById('resultsView').classList.add('hidden');
+            document.getElementById('studentView').classList.remove('hidden');
+            document.getElementById('studentSelect').value = '';
+        }
+
+        function saveRemark() {
+            const remark = document.getElementById('remarkText').value;
+            const msg = document.getElementById('successMsg');
+            msg.classList.add('show');
+            msg.textContent = '✅ Remark saved successfully!';
+            setTimeout(() => { msg.classList.remove('show'); }, 3000);
+            console.log('Remark saved:', remark);
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>

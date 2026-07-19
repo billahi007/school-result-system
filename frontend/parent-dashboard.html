@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parent Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #f4f6f9; }
+        .header { background: #2c3e50; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; }
+        .logout-btn { background: #e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .logout-btn:hover { background: #c0392b; }
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card h2 { color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #34495e; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .welcome { font-size: 18px; color: #2c3e50; }
+        .welcome span { font-weight: bold; }
+        .student-info { background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .student-info p { margin: 5px 0; color: #2c3e50; }
+        .student-info strong { color: #2c3e50; }
+        .print-btn { background: #3498db; color: white; padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 15px; }
+        .print-btn:hover { background: #2980b9; }
+        .badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; color: white; }
+        .badge.A { background: #2ecc71; }
+        .badge.B { background: #f39c12; }
+        .badge.C { background: #e67e22; }
+        .badge.D { background: #e74c3c; }
+        .badge.F { background: #c0392b; }
+        .remark-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #3498db; }
+        .remark-box p { color: #2c3e50; font-style: italic; }
+        .footer { text-align: center; color: #7f8c8d; padding: 20px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Parent Dashboard</h1>
+        <div>
+            <span class="welcome">Welcome, <span id="parentName">Parent</span> 👋</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Student Info -->
+        <div class="card">
+            <h2>👨‍🎓 My Child's Report Sheet</h2>
+            <div class="student-info">
+                <p><strong>Student Name:</strong> <span id="studentName">Adeola Kunle</span></p>
+                <p><strong>Class:</strong> <span id="className">JSS 3A</span></p>
+                <p><strong>Term:</strong> <span id="termName">First Term 2024/2025</span></p>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card">
+            <h2>📋 Results</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>CA1</th>
+                        <th>CA2</th>
+                        <th>Exam</th>
+                        <th>Total</th>
+                        <th>Grade</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <tr>
+                        <td>Mathematics</td>
+                        <td>45</td>
+                        <td>32</td>
+                        <td>70</td>
+                        <td>147</td>
+                        <td><span class="badge B">B</span></td>
+                    </tr>
+                    <tr>
+                        <td>English</td>
+                        <td>50</td>
+                        <td>40</td>
+                        <td>65</td>
+                        <td>155</td>
+                        <td><span class="badge B">B</span></td>
+                    </tr>
+                    <tr>
+                        <td>Science</td>
+                        <td>60</td>
+                        <td>45</td>
+                        <td>75</td>
+                        <td>180</td>
+                        <td><span class="badge A">A</span></td>
+                    </tr>
+                    <tr>
+                        <td>Social Studies</td>
+                        <td>55</td>
+                        <td>38</td>
+                        <td>68</td>
+                        <td>161</td>
+                        <td><span class="badge B">B</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Summary -->
+            <div style="margin-top: 20px; display: flex; gap: 30px; flex-wrap: wrap;">
+                <div><strong>Total Score:</strong> <span id="totalScore">643</span></div>
+                <div><strong>Average:</strong> <span id="averageScore">160.75</span></div>
+                <div><strong>Position:</strong> <span id="position">3rd</span></div>
+            </div>
+        </div>
+
+        <!-- Remark -->
+        <div class="card">
+            <h2>📝 Teacher's Remark</h2>
+            <div class="remark-box">
+                <p id="teacherRemark">Good performance, needs improvement in Mathematics. Keep up the good work in Science!</p>
+            </div>
+        </div>
+
+        <!-- Print Button -->
+        <div style="text-align: center;">
+            <button class="print-btn" onclick="printReport()">🖨️ Print Report Sheet</button>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 School Results System - All Rights Reserved</p>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in as parent
+        const user = JSON.parse(localStorage.getItem('user') || '{"name":"Parent", "role":"parent"}');
+        if (!localStorage.getItem('token') || user.role !== 'parent') {
+            window.location.href = 'login.html';
+        }
+        document.getElementById('parentName').textContent = user.name || 'Parent';
+
+        // Print function
+        function printReport() {
+            window.print();
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
